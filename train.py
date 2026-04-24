@@ -366,7 +366,7 @@ pretrained_scheduler = optim.lr_scheduler.ReduceLROnPlateau(pretrained_optimizer
 pretrained_model_path, pretrained_history = train_model(
     pretrained_model, pretrained_criterion, pretrained_optimizer,
     train_loader, validation_loader,
-    10, os.path.join(DATA_DIR, "best_model_pretrained.pth"),
+    8, os.path.join(DATA_DIR, "best_model_pretrained.pth"),
     scheduler=pretrained_scheduler
 )
 
