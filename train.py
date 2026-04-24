@@ -12,6 +12,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 import numpy as np
+from sklearn.svm import SVC, LinearSVC
+from sklearn.neighbors import KNeighborsClassifier
+import joblib
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # %%
 # --- 1. KONFİGÜRASYON AYARLARI ---
@@ -301,11 +306,6 @@ def test_model(model, model_path, test_loader, class_names):
     plt.show()
 
 # %%
-# Test sonuçlarını toplamak için boş bir liste oluşturalım.
-# Her modelin eğitimi bittiğinde bu listeye eklenecek.
-trained_models_info = []
-
-# %%
 # --- 7. ÖZEL CNN MODELİNİN EĞİTİLMESİ (KendiCNN) ---
 
 print(f"\n{'='*20} MODEL EĞİTİMİ BAŞLIYOR: CUSTOM {'='*20}")
@@ -326,11 +326,6 @@ custom_model_path, custom_history = train_model(
 # Eğitimi biten modelin grafiklerini çizdir
 plot_training_history(custom_history, model_name="KendiCNN")
 
-trained_models_info.append({
-    "name": "custom",
-    "get_model": KendiCNN,
-    "path": custom_model_path
-})
 print(f"\n{'='*20} MODEL EĞİTİMİ TAMAMLANDI: CUSTOM {'='*20}")
 
 # %%
@@ -355,11 +350,9 @@ for name, param in pretrained_model.named_parameters():
         elif 'fc' in name:
             fc_params.append(param)
 
-PRETRAINED_LR = 0.0005
-
 pretrained_optimizer = optim.Adam([
     {'params': layer4_params, 'lr': 1e-5},  # Backbone kısmına çok küçük LR (Overfitting'i önler)
-    {'params': fc_params, 'lr': PRETRAINED_LR} # Sınıflandırıcıya normal LR
+    {'params': fc_params, 'lr': 0.0005} # Sınıflandırıcıya normal LR
 ], weight_decay=1e-3)
 pretrained_scheduler = optim.lr_scheduler.ReduceLROnPlateau(pretrained_optimizer, mode='min', factor=0.5, patience=2)
 
@@ -373,11 +366,6 @@ pretrained_model_path, pretrained_history = train_model(
 # Eğitimi biten modelin grafiklerini çizdir
 plot_training_history(pretrained_history, model_name="ResNet18 (Transfer Learning)")
 
-trained_models_info.append({
-    "name": "pretrained",
-    "get_model": get_pretrained_model,
-    "path": pretrained_model_path
-})
 print(f"\n{'='*20} MODEL EĞİTİMİ TAMAMLANDI: PRETRAINED {'='*20}")
 
 # %%
@@ -487,3 +475,153 @@ def predict_single_image(image_path, models_info, class_names):
 
 # ornek_resim_yolu = "deneme_resmi.jpg"
 # predict_single_image(ornek_resim_yolu, PREDICT_MODELS, CLASS_NAMES)
+
+# %%
+# --- 11. KLASİK MAKİNE ÖĞRENMESİ MODELLERİ (SVM & KNN) ---
+
+print(f"\n\n{'#'*25} KLASİK ML MODELLERİ BAŞLIYOR (SVM & KNN) {'#'*25}")
+
+os.environ["LOKY_MAX_CPU_COUNT"] = "4"
+
+# Geleneksel ML modelleri için 256x256 çok büyük (196.608 özellik).
+# Eğitim hızını artırmak ve RAM'i korumak için boyutları 32x32'ye küçültüp düzleştirerek (flatten) eğiteceğiz.
+ml_transforms = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.ToTensor()
+])
+
+# Sadece eğitim ve test setlerini klasik ML için yeniden yüklüyoruz
+ml_train_dataset = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), transform=ml_transforms)
+ml_test_dataset = datasets.ImageFolder(os.path.join(DATA_DIR, "test"), transform=ml_transforms)
+
+# Scikit-learn modelleri tüm veriyi tek bir 2D matris olarak (Örnek Sayısı x Özellik Sayısı) ister
+def extract_features_for_ml(dataset):
+    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    X = []
+    y = []
+    for inputs, labels in tqdm(loader, desc="Özellikler Çıkarılıyor"):
+        # Resimleri düzleştir (flatten): (Batch, 3, 32, 32) -> (Batch, 3072)
+        inputs_flattened = inputs.view(inputs.size(0), -1).numpy()
+        X.extend(inputs_flattened)
+        y.extend(labels.numpy())
+    return np.array(X), np.array(y)
+
+print("\nEğitim verileri SVM/KNN için hazırlanıyor...")
+X_train, y_train = extract_features_for_ml(ml_train_dataset)
+print("Test verileri SVM/KNN için hazırlanıyor...")
+X_test, y_test = extract_features_for_ml(ml_test_dataset)
+
+print("\n--- Veri Ölçeklendirme ve Boyut İndirgeme (PCA) Uygulanıyor ---")
+# 1. Verileri Ölçeklendir (Ortalama 0, Varyans 1 olacak şekilde)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# 2. PCA ile boyutu küçült (Örn: 3072 boyuttan en önemli 150 özelliği çıkar)
+# Bu işlem "Boyutluluk Laneti"ni çözer ve SVM/KNN modellerini inanılmaz hızlandırır.
+pca = PCA(n_components=150, random_state=42)
+X_train_pca = pca.fit_transform(X_train_scaled)
+X_test_pca = pca.transform(X_test_scaled)
+
+print(f"Orijinal Özellik Sayısı (Ham Pikseller): {X_train.shape[1]}")
+print(f"PCA Sonrası İndirgenmiş Özellik Sayısı: {X_train_pca.shape[1]}")
+joblib.dump(scaler, os.path.join(DATA_DIR, "scaler.pkl")) # Test aşaması için kaydet
+joblib.dump(pca, os.path.join(DATA_DIR, "pca.pkl")) # Test aşaması için kaydet
+
+def evaluate_ml_model(y_true, y_pred, model_name, class_names):
+    print(f"\n--- {model_name} Sonuçları ---")
+    accuracy = accuracy_score(y_true, y_pred)
+    print(f"Test Seti Başarımı (Accuracy): {accuracy:.4f}\n")
+    
+    print("Sınıflandırma Raporu:")
+    print(classification_report(y_true, y_pred, target_names=class_names))
+    
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=class_names, yticklabels=class_names)
+    plt.title(f'{model_name} - Karmaşıklık Matrisi (Confusion Matrix)')
+    plt.ylabel('Gerçek Etiket')
+    plt.xlabel('Tahmin Edilen Etiket')
+    plt.show()
+
+# 1. KNN Modeli
+print("\n--- KNN Modeli Eğitiliyor ---")
+knn_model = KNeighborsClassifier(n_neighbors=5, n_jobs=2)
+knn_model.fit(X_train_pca, y_train)
+
+print("KNN Test Ediliyor...")
+y_pred_knn = knn_model.predict(X_test_pca)
+evaluate_ml_model(y_test, y_pred_knn, "KNN", train_dataset.classes)
+joblib.dump(knn_model, os.path.join(DATA_DIR, "best_model_knn.pkl")) # Modeli Kaydet
+
+# 2. SVM Modeli
+print("\n--- SVM Modeli Eğitiliyor (Bu işlem veri boyutuna göre biraz zaman alabilir) ---")
+svm_model = LinearSVC(random_state=42, verbose=1, dual=False, max_iter=2000)
+svm_model.fit(X_train_pca, y_train)
+
+print("SVM Test Ediliyor...")
+y_pred_svm = svm_model.predict(X_test_pca)
+evaluate_ml_model(y_test, y_pred_svm, "SVM", train_dataset.classes)
+joblib.dump(svm_model, os.path.join(DATA_DIR, "best_model_svm.pkl")) # Modeli Kaydet
+
+# %%
+# --- 12. KLASİK ML MODELLERİ İLE TEK BİR RESMİ TEST ETME ---
+
+from PIL import Image
+
+def predict_single_image_ml(image_path, class_names):
+    if not os.path.exists(image_path):
+        print(f"\nHata: Resim bulunamadı -> {image_path}")
+        return
+
+    try:
+        # 1. Kayıtlı dönüştürücüleri (Scaler ve PCA) yükle
+        scaler_path = os.path.join(DATA_DIR, "scaler.pkl")
+        pca_path = os.path.join(DATA_DIR, "pca.pkl")
+        
+        if not os.path.exists(scaler_path) or not os.path.exists(pca_path):
+            print("\nHata: Scaler veya PCA modeli bulunamadı. Lütfen önce 11. adımı çalıştırıp kaydedin.")
+            return
+            
+        scaler = joblib.load(scaler_path)
+        pca = joblib.load(pca_path)
+        
+        # 2. Resmi yükle ve ML formatına uygun ön işleme yap (32x32 boyutlandırma)
+        img = Image.open(image_path).convert("RGB")
+        
+        ml_transform = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor()
+        ])
+        
+        # Resmi PyTorch tensörüne çevir ve düzleştir (Flatten): (1, 3, 32, 32) -> (1, 3072)
+        img_tensor = ml_transform(img)
+        img_flattened = img_tensor.view(1, -1).numpy()
+        
+        # 3. Ölçeklendirme ve Boyut İndirgeme (SADECE transform yapıyoruz, fit YAPMIYORUZ!)
+        img_scaled = scaler.transform(img_flattened)
+        img_pca = pca.transform(img_scaled)
+        
+        print(f"\n--- ML Modelleri Tekil Resim Test Sonucu ---")
+        print(f"Resim: {image_path}")
+        print(f"{'Model':<15} | {'Tahmin':<10}")
+        print("-" * 30)
+        
+        # 4. Modelleri yükle ve tahmin et
+        ml_models = [("KNN", "best_model_knn.pkl"), ("SVM", "best_model_svm.pkl")]
+        
+        for model_name, pkl_name in ml_models:
+            model_path = os.path.join(DATA_DIR, pkl_name)
+            if os.path.exists(model_path):
+                model = joblib.load(model_path)
+                predicted_class = model.predict(img_pca)[0] # Tahmin sonucunu al (örn: 0 veya 1)
+                print(f"{model_name:<15} | {class_names[predicted_class].upper():<10}")
+            else:
+                print(f"{model_name:<15} | HATA: Model dosyası bulunamadı")
+        print("-" * 30)
+    except Exception as e:
+        print(f"Resim işlenirken hata oluştu: {e}")
+
+# ornek_resim_yolu = "deneme_resmi.jpg"
+# predict_single_image_ml(ornek_resim_yolu, train_dataset.classes)
