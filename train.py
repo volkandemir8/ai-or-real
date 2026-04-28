@@ -518,8 +518,8 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # 2. PCA ile boyutu küçült (Örn: 3072 boyuttan en önemli 150 özelliği çıkar)
-# Bu işlem "Boyutluluk Laneti"ni çözer ve SVM/KNN modellerini inanılmaz hızlandırır.
-pca = PCA(n_components=150, random_state=42)
+# Bu işlem "Curse of Dimensionality"i çözer ve SVM/KNN modellerini inanılmaz hızlandırır.
+pca = PCA(n_components=0.95, random_state=42) # Orijinal bilginin (varyansın) %95'ini koru
 X_train_pca = pca.fit_transform(X_train_scaled)
 X_test_pca = pca.transform(X_test_scaled)
 
