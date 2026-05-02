@@ -266,7 +266,7 @@ def plot_training_history(history, model_name="Model"):
 # --- 6. TEST FONKSİYONU VE METRİKLER ---
 
 def test_model(model, model_path, test_loader, class_names):
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, weights_only=True))
     model.to(DEVICE)
     model.eval()
 
@@ -312,7 +312,9 @@ print(f"\n{'='*20} MODEL EĞİTİMİ BAŞLIYOR: CUSTOM {'='*20}")
 
 custom_model = KendiCNN().to(DEVICE)
 
-custom_criterion = nn.BCEWithLogitsLoss()
+# pozitif sınıf (Real) ağırlığını 0.85'e düşürüyoruz.
+custom_weight = torch.tensor([0.85]).to(DEVICE)
+custom_criterion = nn.BCEWithLogitsLoss(pos_weight=custom_weight)
 custom_optimizer = optim.Adam(custom_model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 custom_scheduler = optim.lr_scheduler.ReduceLROnPlateau(custom_optimizer, mode='min', factor=0.5, patience=2)
 
@@ -454,7 +456,7 @@ def predict_single_image(image_path, models_info, class_names):
 
             # Modeli yükle
             model = get_model_fn()
-            model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+            model.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=True))
             model.to(DEVICE)
             model.eval()
             

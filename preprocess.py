@@ -21,7 +21,7 @@ output_root = "train_dataset"
 IMG_SIZE = 256
 
 # VALIDATION SPLIT RATIO
-VAL_SPLIT_RATIO = 0.15 # Orijinal train verisinin %15'i validation'a ayrilacak
+VAL_SPLIT_RATIO = 0.25 # Orijinal train verisinin %25'i validation'a ayrilacak
 
 def process_single_image(img_input_path, output_path, img_name):
         try:
@@ -34,12 +34,12 @@ def process_single_image(img_input_path, output_path, img_name):
             img = img.resize((IMG_SIZE,IMG_SIZE), Image.Resampling.LANCZOS) # kalite kaybını en aza indiren, LANCZOS algoritması
 
             # yeni isim
-            new_name = os.path.splitext(img_name)[0] + ".jpg"
+            new_name = os.path.splitext(img_name)[0] + ".png"
 
             img_output_path = os.path.join(output_path, new_name)
 
-            # Yüksek kaliteli rastgele JPEG olarak kaydet (90-100 arası)
-            img.save(img_output_path, "JPEG", quality=random.randint(90, 100))
+            # Kayıpsız (lossless) PNG olarak kaydet
+            img.save(img_output_path, "PNG")
 
         except Exception as e:
             print("Error:", img_input_path, e)

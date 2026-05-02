@@ -62,10 +62,10 @@ def process_and_split_multiple_datasets():
                         img = img.resize((IMG_SIZE, IMG_SIZE), Image.Resampling.LANCZOS)
                         
                         # İsim çakışmasını engellemek için başına klasör adını ekliyoruz
-                        new_name = f"{ds_folder}_{cls}_{os.path.splitext(img_name)[0]}.jpg"
+                        new_name = f"{ds_folder}_{cls}_{os.path.splitext(img_name)[0]}.png"
                         
-                        # Sabit kalite yerine 90-100 arası rastgele yüksek kalite
-                        img.save(os.path.join(output_path, new_name), "JPEG", quality=random.randint(90, 100))
+                        # Kayıpsız (lossless) PNG olarak kaydet
+                        img.save(os.path.join(output_path, new_name), "PNG")
                     except Exception as e:
                         print("Hata:", img_input_path, e)
 
