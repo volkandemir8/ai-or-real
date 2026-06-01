@@ -10,7 +10,7 @@ from tqdm import tqdm
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, roc_curve, auc
 import numpy as np
 from sklearn.svm import SVC, LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
@@ -272,18 +272,21 @@ def test_model(model, model_path, test_loader, class_names):
 
     y_true = []
     y_pred = []
-    
+    y_probs = []
+
     print("\n--- Test Aşaması Başlatıldı ---")
     with torch.no_grad():
         for inputs, labels in tqdm(test_loader, desc="[Test]"):
             inputs = inputs.to(DEVICE)
             outputs = model(inputs)
             
-            predicted = torch.sigmoid(outputs) > PREDICTION_THRESHOLD
+            probs = torch.sigmoid(outputs)
+            predicted = probs > PREDICTION_THRESHOLD
 
             # squeeze() yerine view(-1) kullanarak son batch 1 gelse bile çökmesini engelliyoruz
             y_true.extend(labels.cpu().view(-1).numpy())
             y_pred.extend(predicted.cpu().view(-1).numpy())
+            y_probs.extend(probs.cpu().view(-1).numpy())
 
     print("\n--- Test Sonuçları ---")
     
@@ -297,12 +300,31 @@ def test_model(model, model_path, test_loader, class_names):
 
     # Karmaşıklık Matrisi (Confusion Matrix)
     cm = confusion_matrix(y_true, y_pred)
-    plt.figure(figsize=(8, 6))
+    
+    # Grafikleri yan yana çizdirmek için Figure oluştur
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # 1. Karmaşıklık Matrisi
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=class_names, yticklabels=class_names)
-    plt.title('Karmaşıklık Matrisi (Confusion Matrix)')
-    plt.ylabel('Gerçek Etiket')
-    plt.xlabel('Tahmin Edilen Etiket')
+                xticklabels=class_names, yticklabels=class_names, ax=axes[0])
+    axes[0].set_title('Karmaşıklık Matrisi (Confusion Matrix)')
+    axes[0].set_ylabel('Gerçek Etiket')
+    axes[0].set_xlabel('Tahmin Edilen Etiket')
+
+    # 2. ROC Eğrisi
+    fpr, tpr, thresholds = roc_curve(y_true, y_probs)
+    roc_auc = auc(fpr, tpr)
+    
+    axes[1].plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
+    axes[1].plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    axes[1].set_xlim([0.0, 1.0])
+    axes[1].set_ylim([0.0, 1.05])
+    axes[1].set_xlabel('False Positive Rate')
+    axes[1].set_ylabel('True Positive Rate')
+    axes[1].set_title('Receiver Operating Characteristic (ROC)')
+    axes[1].legend(loc="lower right")
+    
+    plt.tight_layout()
     plt.show()
 
 # %%
