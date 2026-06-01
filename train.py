@@ -301,7 +301,7 @@ def test_model(model, model_path, test_loader, class_names):
     # Karmaşıklık Matrisi (Confusion Matrix)
     cm = confusion_matrix(y_true, y_pred)
     
-    # Grafikleri yan yana çizdirmek için Figure oluştur
+    # Grafikleri yan yana çizdirmek için
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     
     # 1. Karmaşıklık Matrisi
@@ -623,7 +623,7 @@ def predict_single_image_ml(image_path, class_names):
         img_tensor = ml_transform(img)
         img_flattened = img_tensor.view(1, -1).numpy()
         
-        # 3. Ölçeklendirme ve Boyut İndirgeme (SADECE transform yapıyoruz, fit YAPMIYORUZ!)
+        # 3. Ölçeklendirme ve Boyut İndirgeme
         img_scaled = scaler.transform(img_flattened)
         img_pca = pca.transform(img_scaled)
         
