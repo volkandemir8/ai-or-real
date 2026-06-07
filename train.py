@@ -507,14 +507,11 @@ print(f"\n\n{'#'*25} KLASİK ML MODELLERİ BAŞLIYOR (SVM & KNN) {'#'*25}")
 
 os.environ["LOKY_MAX_CPU_COUNT"] = "4"
 
-# Geleneksel ML modelleri için 256x256 çok büyük (196.608 özellik).
-# Eğitim hızını artırmak ve RAM'i korumak için boyutları 32x32'ye küçültüp düzleştirerek (flatten) eğiteceğiz.
 ml_transforms = transforms.Compose([
     transforms.Resize((32, 32)),
     transforms.ToTensor()
 ])
 
-# Sadece eğitim ve test setlerini klasik ML için yeniden yüklüyoruz
 ml_train_dataset = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), transform=ml_transforms)
 ml_test_dataset = datasets.ImageFolder(os.path.join(DATA_DIR, "test"), transform=ml_transforms)
 
@@ -542,7 +539,6 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # 2. PCA ile boyutu küçült (Örn: 3072 boyuttan en önemli 150 özelliği çıkar)
-# Bu işlem "Curse of Dimensionality"i çözer ve SVM/KNN modellerini inanılmaz hızlandırır.
 pca = PCA(n_components=0.95, random_state=42) # Orijinal bilginin (varyansın) %95'ini koru
 X_train_pca = pca.fit_transform(X_train_scaled)
 X_test_pca = pca.transform(X_test_scaled)
